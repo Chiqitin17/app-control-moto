@@ -14,38 +14,41 @@ BENCINA_PCT = 0.15
 MANT_PCT = 0.15
 AHORRO_PCT = 0.10
 
-# ==========================================
-# ⚠️ PEGA AQUÍ EL LINK DE TU GOOGLE SHEET ⚠️
-# ==========================================
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1-e_-2nAwtAXE4jsTFA0jSN_eaI3uvwvNx5dsep7JP64/edit?gid=1745888236#gid=1745888236"
+# Usamos directamente el ID de tu Excel para evitar errores de links
+SHEET_ID = "1-e_-2nAwtAXE4jsTFA0jSN_eaI3uvwvNx5dsep7JP64"
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_gsheets():
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    # Agregamos permisos de Drive por si Google lo exige
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
     skey = st.secrets["gcp_service_account"]
     credentials = Credentials.from_service_account_info(json.loads(skey), scopes=scopes)
     gc = gspread.authorize(credentials)
-    return gc.open_by_url(SHEET_URL)
+    return gc.open_by_key(SHEET_ID)
 
 try:
     sh = conectar_gsheets()
     ws_turnos = sh.worksheet("Turnos")
     ws_gastos = sh.worksheet("Gastos")
 except Exception as e:
-    st.error("Error conectando al Excel. Revisa el link y los permisos.")
+    st.error(f"🚨 Error técnico detectado: {e}")
+    st.info("Por favor, mándame una captura de este error exacto para saber qué falta.")
     st.stop()
 
 # --- CARGAR DATOS ---
 def cargar_datos():
-    # Cargar Turnos. Si está vacío, crea las columnas.
+    # Turnos
     try:
         df_t = pd.DataFrame(ws_turnos.get_all_records())
     except:
         ws_turnos.append_row(['Fecha', 'App', 'KM_Inicial', 'KM_Final', 'Base', 'Promo', 'Propina', 'SII', 'Fondo_Bencina', 'Fondo_Mant', 'Fondo_Ahorro', 'Para_Mi'])
         df_t = pd.DataFrame(ws_turnos.get_all_records())
     
-    # Cargar Gastos. Si está vacío, crea las columnas.
+    # Gastos
     try:
         df_g = pd.DataFrame(ws_gastos.get_all_records())
     except:
@@ -55,13 +58,6 @@ def cargar_datos():
     return df_t, df_g
 
 turnos_df, gastos_df = cargar_datos()
-
-# Asegurar que las columnas de dinero sean números
-for col in ['Fondo_Bencina', 'Fondo_Mant', 'Fondo_Ahorro', 'Para_Mi']:
-    if col in turnos_df.columns:
-        turnos_df[col] = pd.to_numeric(turnos_df[col], errors='coerce').fillna(0)
-if 'Monto' in gastos_df.columns:
-    gastos_df['Monto'] = pd.to_numeric(gastos_df['Monto'], errors='coerce').fillna(0)
 
 # --- VARIABLES DE SESIÓN ---
 if 'turno_activo' not in st.session_state:
@@ -91,6 +87,13 @@ tab1, tab2, tab3 = st.tabs(["📊 Panel Principal", "🛵 Mi Turno", "💸 Regis
 with tab1:
     st.title("Mi Panel Financiero")
     
+    # Convertir a números por si acaso
+    if not gastos_df.empty:
+        gastos_df['Monto'] = pd.to_numeric(gastos_df['Monto'], errors='coerce').fillna(0)
+    if not turnos_df.empty:
+        for col in ['Fondo_Bencina', 'Fondo_Mant', 'Fondo_Ahorro', 'Para_Mi']:
+            turnos_df[col] = pd.to_numeric(turnos_df[col], errors='coerce').fillna(0)
+
     gastos_bencina = gastos_df[gastos_df['Tipo'] == 'Bencina']['Monto'].sum() if not gastos_df.empty else 0
     gastos_mant = gastos_df[gastos_df['Tipo'] == 'Mantención']['Monto'].sum() if not gastos_df.empty else 0
     
