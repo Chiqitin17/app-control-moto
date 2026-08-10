@@ -18,19 +18,16 @@ AHORRO_PCT = 0.10
 SHEET_ID = "1-e_-2nAwtAXE4jsTFA0jSN_eaI3uvwvNx5dsep7JP64"
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
-# --- CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_gsheets():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    # Ahora lee el diccionario completo de secretos directamente
     skey = dict(st.secrets["gcp_service_account"])
     credentials = Credentials.from_service_account_info(skey, scopes=scopes)
     gc = gspread.authorize(credentials)
     return gc.open_by_key(SHEET_ID)
-
 try:
     sh = conectar_gsheets()
     ws_turnos = sh.worksheet("Turnos")
